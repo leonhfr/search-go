@@ -1,0 +1,53 @@
+package main
+
+import (
+	"syscall/js"
+
+	"github.com/leonhfr/search-go/pkg/bloom"
+	"github.com/leonhfr/search-go/pkg/engine"
+)
+
+var data = engine.Entries{
+	{{ range .Entries }}
+	engine.Entry{
+		Title: "{{ .Title }}",
+		URL:   "{{ .URL }}",
+		Filter: bloom.Filter{
+			Bitset: []uint64{
+				{{ range .Filter.Bitset }}{{ . }},
+				{{ end }}
+			},
+			Seeds: [14]uint32{
+				{{ range .Filter.Seeds }}{{ . }},
+				{{ end }}
+			},
+		},
+	},
+	{{ end }}
+}
+
+func main() {
+	js.Global().Set("search", search())
+	<-make(chan struct{})
+}
+
+func search() js.Func {
+	return js.FuncOf(func(this js.Value, args []js.Value) any {
+		if len(args) != 1 {
+			return "invalid number of arguments"
+		}
+		results := data.Search(args[0].String())
+		return jsValue(results)
+	})
+}
+
+func jsValue(results []engine.Result) []any {
+	var res []any
+	for _, r := range results {
+		res = append(res, map[string]string{
+			"title": r.Title,
+			"url":   r.URL,
+		})
+	}
+	return res
+}
